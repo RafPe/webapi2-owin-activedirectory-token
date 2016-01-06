@@ -27,7 +27,7 @@ namespace webapi2.adtoken
         {
             OAuthAuthorizationServerOptions OAuthServerOptions = new OAuthAuthorizationServerOptions()
             {
-                //TODO THIS SHOULD BE FALSE IN PRODUCTION
+                //TODO 1: THIS SHOULD BE FALSE IN PRODUCTION
                 AllowInsecureHttp = true,
                 TokenEndpointPath = new PathString("/token"),
                 AccessTokenExpireTimeSpan = TimeSpan.FromDays(1),
