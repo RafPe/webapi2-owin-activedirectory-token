@@ -4,88 +4,85 @@ using Microsoft.Owin.Security.OAuth;
 
 namespace webapi2.adtoken
 {
-    public class ADAuthorizationServerProvider : OAuthAuthorizationServerProvider
-    {
-        /// <summary>
-        /// In this methods we validate our client credentials
-        /// </summary>
-        /// <param name="context"></param>
-        /// <returns></returns>
-        public override async Task ValidateClientAuthentication(OAuthValidateClientAuthenticationContext context)
-        {
-            string clientId = string.Empty;
-            string clientSecret = string.Empty;
 
-            if (!context.TryGetBasicCredentials(out clientId, out clientSecret))
-            {
-                context.TryGetFormCredentials(out clientId, out clientSecret);
-            }
+  public class ADAuthorizationServerProvider : OAuthAuthorizationServerProvider
+  {
+      public override async Task ValidateClientAuthentication(OAuthValidateClientAuthenticationContext context)
+      {
+          string clientId = string.Empty;
+          string clientSecret = string.Empty;
 
-            if (clientId == null && clientSecret == null)
-            {
-                   context.Rejected();
-                   context.SetError("invalid_client", "Client credentials could not be retrieved");
+          if (!context.TryGetBasicCredentials(out clientId, out clientSecret))
+          {
+              context.TryGetFormCredentials(out clientId, out clientSecret);
+          }
 
-                   return;
-            }
-            else
-            {
+          if (clientId == null && clientSecret == null)
+          {
+              context.Rejected();
+              context.SetError("invalid_client", "Client credentials could not be retrieved");
 
-                using (ActiveDirectoryRepo _repo = new ActiveDirectoryRepo())
-                {
-                    //TODO 5: TO BE CHANGED WITH VARIABLES FROM CONTEXT
-                    var usercredentialsAreValid = await _repo.ValidateADcredentialsAsync("", "", "");
+              return;
+          }
+          else
+          {
 
-                    if (!usercredentialsAreValid)
-                    {
-                        context.Rejected();
-                        context.SetError("invalid_grant", "The user name or password is incorrect.");
+              using (ActiveDirectoryRepo _repo = new ActiveDirectoryRepo())
+              {
+                  var usercredentialsAreValid = await _repo.ValidateADcredentialsAsync("<DOMAIN-NAME>", clientId, clientSecret);
 
-                        return;
-                    }
-                    else
-                    {
-                        context.Validated();
-                    }
-                }
+                  if (!usercredentialsAreValid)
+                  {
+                      context.Rejected();
+                      context.SetError("invalid_grant", "The user name or password is incorrect.");
 
-                
-            }
-
-            
+                      return;
+                  }
+                  else
+                  {
+                      context.Validated();
+                  }
+              }
 
 
-            
-        }
+          }
 
-        public override async Task GrantResourceOwnerCredentials(OAuthGrantResourceOwnerCredentialsContext context)
-        {
 
-            context.OwinContext.Response.Headers.Add("Access-Control-Allow-Origin", new[] { "*" });
 
-            using (ActiveDirectoryRepo _repo = new ActiveDirectoryRepo())
-            {
-                //TODO 4: TO BE CHANGED WITH VARIABLES FROM CONTEXT
-                var user = await _repo.GetUserGroupsAsync("","","");
 
-                if (context.UserName == null)
-                {
-                    context.SetError("invalid_grant", "The user name or password is incorrect.");
-                    return;
-                }
-            }
 
-            var identity = new ClaimsIdentity(context.Options.AuthenticationType);
+      }
 
-            //TODO  2: THIS SHOULD BE DYNAMIC FROM AD GROUPS ? DEPENDING ON USER NEEDS
-            identity.AddClaim(new Claim(ClaimTypes.Name, context.UserName));
+      public override async Task GrantResourceOwnerCredentials(OAuthGrantResourceOwnerCredentialsContext context)
+      {
 
-            identity.AddClaim(new Claim("sub", context.UserName));
-            identity.AddClaim(new Claim("role", "user"));
+          context.OwinContext.Response.Headers.Add("Access-Control-Allow-Origin", new[] { "*" });
 
-            context.Validated(identity);
+          var identity = new ClaimsIdentity(context.Options.AuthenticationType);
 
-        }
-    }
-}
+          identity.AddClaim(new Claim(ClaimTypes.Name, context.ClientId));
+
+          using (ActiveDirectoryRepo _repo = new ActiveDirectoryRepo())
+          {
+              var groups = await _repo.GetUserGroupsAsync("<DOMAIN-NAME>", context.ClientId, "<GROUP-PREFIX>");
+
+              //identity.AddClaim(new Claim("sub", context.UserName));
+              foreach (string name in groups)
+              {
+                  identity.AddClaim(new Claim("role", name));
+              }
+
+              if (context.ClientId == null)
+              {
+                  context.SetError("invalid_grant", "Supplied credentials are not valid");
+                  return;
+              }
+          }
+
+          context.Validated(identity);
+
+      }
+  }
+
+
 }

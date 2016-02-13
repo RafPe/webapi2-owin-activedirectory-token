@@ -17,7 +17,7 @@ namespace webapi2.adtoken
         }
 
         /// <summary>
-        /// This method is responsible for validating user credentials 
+        /// This method is responsible for validating user credentials
         /// against LDAP server
         /// </summary>
         /// <param name="domain"> domain against which we validate credentials</param>
@@ -53,33 +53,57 @@ namespace webapi2.adtoken
         {
             return (Task<List<string>>) Task.Factory.StartNew(() =>
             {
-                try
-                {
-                    DirectoryEntry de = null;
-                    DirectorySearcher directorySearcher = null;
+               try
+               {
+                  DirectoryEntry de = null;
+                  DirectorySearcher directorySearcher = null;
 
-                    de = new DirectoryEntry("LDAP://" + LDAPdomain);
-                    directorySearcher = new DirectorySearcher(de);
-                    directorySearcher.Filter = $"(&(objectClass=person)(objectCategory=user)(sAMAccountname={username}))";
-                    SearchResult searchResult = directorySearcher.FindOne();
+                  //TODO: AD user needs to be from config!
+                  de = new DirectoryEntry("LDAP://" + "<DOMAIN-NAME>, "<LDAP-bind-username>", "<LDAP-bind-password");
+                  directorySearcher = new DirectorySearcher(de);
+                  directorySearcher.PropertiesToLoad.Add("memberOf");
+                  directorySearcher.Filter = $"(&(objectClass=person)(objectCategory=user)(sAMAccountname={username}))";
+                  SearchResult searchResult = directorySearcher.FindOne();
 
-                    var singleResult = searchResult.GetDirectoryEntry();
+                  var singleResult = searchResult.GetDirectoryEntry();
 
-                    List<string> memberof = new List<string>();
+                  List<string> memberof = new List<string>();
 
-                    foreach (object oMember in de.Properties["memberOf"])
-                    {
-                        //TODO 3: REQUIRES WORK ON GETTING JUST GROUP NAMES WHICH LATER CAN BE USED AS CLAIM ROLES
-                        memberof.Add(oMember.ToString());
-                    }
+                  var memberOfs = singleResult.Properties["memberOf"];
 
-                    return memberof;
+                  foreach (object oMember in memberOfs)
+                  {
+                      try
+                      {
+
+                          // Here we call Regex.Match.
+                          Match match = Regex.Match(oMember.ToString(), @"CN=([^,]+),", RegexOptions.IgnoreCase);
+
+                          // Here we check the Match instance.
+                          if (match.Success)
+                          {
+
+                              memberof.Add(match.Groups[1].Value);
+
+                          }
+
+
+                      }
+                      catch
+                      {
+                      }
+                  }
+                  // This could be done already before so we skipp unnecessary adds
+                  return memberof.Where(r => r.Contains(groupNamePrefix)).ToList();
                 }
+
+
                 catch (Exception exc)
                 {
                     return null;
                 }
-            });
+            }
+          );
         }
 
         public void Dispose()
